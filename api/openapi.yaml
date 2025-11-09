@@ -1,0 +1,26 @@
+openapi: 3.0.3
+info:
+  title: API - SIAAS
+  version: "1.0.0"
+paths:
+  /incidents:
+    get:
+      summary: Listar incidentes
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [nuevo,en_atencion,cerrado] }
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Crear/upsert incidente
+      responses:
+        '201':
+          description: Creado
+  /incidents/{id}/status:
+    patch:
+      summary: Cambiar estado
+      responses:
+        '200':
+          description: OK

@@ -1,0 +1,1 @@
+class Incident { /* TODO */ }

@@ -1,0 +1,7 @@
+Title,Body,Labels,Milestone
+UI móvil: Splash + botón Reportar,Pantalla inicial con logo y CTA grande.,"mobile,ui,alta",S1-2
+UI móvil: Tipo de incidente (6 cards),"Picadura, Corte, Insolación, Intoxicación, Caída, Otros.","mobile,ui,alta",S1-2
+UI móvil: Reporte y Enviar (offline),"Hora auto, ubicación offline, smart_score local, guardar en SQLite.","mobile,offline,alta",S3-4
+Sync móvil: cola + reintentos,Servicio background de sincronización.,"mobile,sync,alta",S3-4
+Web Tópico: Panel de alerta,Vista similar a mockup con botón ALERTA/ATENDER.,"web,ui,alta",S5-6
+Web: Dashboard + filtros,"Tabla, estados, colores por score.","web,media",S5-6

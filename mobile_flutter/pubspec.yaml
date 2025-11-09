@@ -1,0 +1,16 @@
+name: siaas
+description: SIAAS (Sistema Inteligente de Alertas Agrícolas - Offline)
+publish_to: "none"
+version: 0.1.0+1
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  # TODO: add sqflite, path, http, connectivity_plus, geolocator, image_picker
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo_siaas.png
+    - assets/icons/
