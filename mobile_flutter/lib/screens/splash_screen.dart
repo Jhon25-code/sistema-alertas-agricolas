@@ -1,29 +1,76 @@
 import 'package:flutter/material.dart';
+import '../services/sync_service.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+
+    //  INICIAR SINCRONIZACIÓN OFFLINE → ONLINE
+    SyncService().startSyncListener();
+
+    debugPrint(' SyncService iniciado desde SplashScreen');
+  }
+
+  @override
+  void dispose() {
+    //  Detener listener al cerrar la app
+    SyncService().stop();
+    debugPrint(' SyncService detenido');
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFE0F2F1), Color(0xFFF1F8E9)],
+          image: DecorationImage(
+            image: AssetImage("assets/images/fondo_inicio.png"),
+            fit: BoxFit.cover,
           ),
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/images/logo_siaas.png', height: 120, errorBuilder: (_, __, ___)=> const Icon(Icons.grass, size: 120)),
-              const SizedBox(height: 24),
+              Image.asset(
+                "assets/images/logo_siaas.png",
+                width: 200,
+              ),
+              const SizedBox(height: 40),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16), backgroundColor: const Color(0xFF66BB6A), foregroundColor: Colors.black),
-                onPressed: () => Navigator.pushReplacementNamed(context, '/incident_type'),
-                child: const Text('REPORTAR INCIDENTE'),
+                onPressed: () {
+                  Navigator.pushReplacementNamed(
+                    context,
+                    '/incident_type',
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 18,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(40),
+                  ),
+                ),
+                child: const Text(
+                  "REPORTAR INCIDENTE",
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ],
           ),
