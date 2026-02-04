@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
-// ✅ IMPORTACIÓN NUEVA (Necesaria para el feedback)
-import 'package:vibration/vibration.dart';
+// ✅ 1. CAMBIO: Usamos vibración nativa (cero errores)
+import 'package:flutter/services.dart';
 
 import 'local_db.dart';
 import 'package:siaas/config/api_config.dart';
@@ -106,13 +106,13 @@ class SyncService {
 
           print('✅ Sincronizado local_id ${incident['local_id']}');
 
-          // ✅ INNOVACIÓN: Feedback Háptico "Latido"
-          // Si el envío fue exitoso, vibra 3 veces rápido (tic-tic-tic)
-          // Esto confirma al trabajador que la alerta salió del teléfono.
-          if (await Vibration.hasVibrator() ?? false) {
-            // Patrón: espera 0ms, vibra 100ms, espera 50ms, vibra 100ms...
-            Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]);
-          }
+          // ✅ INNOVACIÓN: Feedback Háptico "Latido" (Nativo)
+          // Vibra 3 veces fuerte para confirmar que salió del teléfono (tic-tic-tic)
+          await HapticFeedback.heavyImpact();
+          await Future.delayed(const Duration(milliseconds: 150));
+          await HapticFeedback.heavyImpact();
+          await Future.delayed(const Duration(milliseconds: 150));
+          await HapticFeedback.heavyImpact();
 
         } else {
           print('❌ Error backend ${response.statusCode}: ${response.body}');

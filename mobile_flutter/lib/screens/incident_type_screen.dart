@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:siaas/widgets/incident_type_card.dart';
-// 1. IMPORTAR LA LIBRERÍA DE VIBRACIÓN
-import 'package:vibration/vibration.dart';
+// 1. IMPORT NECESARIO PARA VIBRACIÓN NATIVA
+import 'package:flutter/services.dart';
 
 class IncidentTypeScreen extends StatefulWidget {
   const IncidentTypeScreen({super.key});
@@ -83,11 +83,9 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                       onTap: () async {
                         setState(() => selected = id);
 
-                        // 2. MEJORA: Feedback táctil corto (Tic) al seleccionar
-                        // Ayuda a confirmar la selección bajo sol intenso
-                        if (await Vibration.hasVibrator() ?? false) {
-                          Vibration.vibrate(duration: 40);
-                        }
+                        // 2. CORRECCIÓN: Usamos HapticFeedback Nativo
+                        // lightImpact es perfecto para selección de items (tic suave)
+                        await HapticFeedback.lightImpact();
                       },
                     );
                   },
@@ -96,7 +94,7 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
 
               const SizedBox(height: 14),
 
-              /// ✅ BOTÓN PRO (PASO 3)
+              /// ✅ BOTÓN SIGUIENTE
               AnimatedScale(
                 scale: isEnabled ? 1.0 : 0.97,
                 duration: const Duration(milliseconds: 180),
@@ -108,13 +106,13 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                     decoration: BoxDecoration(
                       color: isEnabled
                           ? const Color(0xFF1976D2)
-                          : const Color(0xFF1976D2).withValues(alpha: 0.35),
+                          : const Color(0xFF1976D2).withOpacity(0.35),
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: isEnabled
                           ? [
                         BoxShadow(
                           color: const Color(0xFF1976D2)
-                              .withValues(alpha: 0.35),
+                              .withOpacity(0.35),
                           blurRadius: 14,
                           offset: const Offset(0, 4),
                         ),
@@ -128,10 +126,8 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                         onTap: !isEnabled
                             ? null
                             : () async {
-                          // 3. MEJORA: Vibración de confirmación de acción
-                          if (await Vibration.hasVibrator() ?? false) {
-                            Vibration.vibrate(duration: 100);
-                          }
+                          // 3. CORRECCIÓN: Confirmación táctil más notable
+                          await HapticFeedback.mediumImpact();
 
                           Navigator.pushNamed(
                             context,
