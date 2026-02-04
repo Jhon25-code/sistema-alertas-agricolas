@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
+// ✅ IMPORTACIÓN NUEVA (Necesaria para el feedback)
+import 'package:vibration/vibration.dart';
 
 import 'local_db.dart';
 import 'package:siaas/config/api_config.dart';
@@ -15,20 +17,20 @@ class SyncService {
 
   final Connectivity _connectivity = Connectivity();
 
-  /// ⚠️ TIPO CORRECTO (Connectivity v6+)
+  /// Connectivity v6+
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
   bool _isSyncing = false;
 
-  /// URL backend (Render)
+  /// URL backend
   static final String _backendUrl = "${ApiConfig.baseUrl}/incidents";
 
-  /// Inicia escucha automática (UNA SOLA VEZ)
-  /// 🔐 FIX: asegurar token antes de sincronizar
+  /// ===============================
+  /// INICIAR ESCUCHA DE CONECTIVIDAD
+  /// ===============================
   Future<void> startSyncListener() async {
     print('🔄 SyncService ACTIVADO');
 
-    // 🔐 ASEGURAR LOGIN ANTES DE ESCUCHAR CONECTIVIDAD
     await AuthService.init();
 
     _subscription =
@@ -53,18 +55,23 @@ class SyncService {
     _isSyncing = true;
     print('🚀 Iniciando sincronización');
 
-    // 🔐 Asegurar token
     await AuthService.init();
-
     final token = AuthService.token;
+
     if (token == null) {
-      print('❌ No hay token, no se puede sincronizar');
+      print('❌ No hay token');
       _isSyncing = false;
       return;
     }
 
     final pending = await LocalDB.getPendingIncidents();
     print('📦 Incidentes pendientes: ${pending.length}');
+
+    if (pending.isEmpty) {
+      print('✅ Nada que sincronizar');
+      _isSyncing = false;
+      return;
+    }
 
     for (final incident in pending) {
       try {
@@ -74,6 +81,7 @@ class SyncService {
           'latitude': incident['lat'],
           'longitude': incident['lng'],
           'smart_score': incident['smart_score'],
+          'local_id': incident['local_id'], // 🔥 CLAVE
         };
 
         print('➡️ Enviando incidente: $payload');
@@ -88,57 +96,34 @@ class SyncService {
         );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
+          // ✅ CAMBIO CLAVE
+          await LocalDB.updateIncidentStatusByLocalId(
+            incident['local_id'],
+            'NUEVA',
+          );
+
           await LocalDB.markAsSynced(incident['id']);
-          print('✅ Sincronizado ID ${incident['id']}');
+
+          print('✅ Sincronizado local_id ${incident['local_id']}');
+
+          // ✅ INNOVACIÓN: Feedback Háptico "Latido"
+          // Si el envío fue exitoso, vibra 3 veces rápido (tic-tic-tic)
+          // Esto confirma al trabajador que la alerta salió del teléfono.
+          if (await Vibration.hasVibrator() ?? false) {
+            // Patrón: espera 0ms, vibra 100ms, espera 50ms, vibra 100ms...
+            Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]);
+          }
+
         } else {
           print('❌ Error backend ${response.statusCode}: ${response.body}');
         }
       } catch (e) {
-        print('🔥 Error sincronizando: $e');
+        print('🔥 Error sincronizando incidente: $e');
       }
     }
-
-    // 🔥 NUEVO: sincronizar estados desde backend
-    await syncStatusesFromServer(token);
 
     _isSyncing = false;
     print('🏁 Sincronización finalizada');
-  }
-
-  /// ===============================
-  /// 🔄 SINCRONIZAR ESTADOS DESDE BACKEND
-  /// ===============================
-  Future<void> syncStatusesFromServer(String token) async {
-    try {
-      print('🔄 Sincronizando estados desde servidor...');
-
-      final response = await http.get(
-        Uri.parse(_backendUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode != 200) {
-        print('❌ Error obteniendo incidentes del servidor');
-        return;
-      }
-
-      final List data = jsonDecode(response.body);
-
-      for (final item in data) {
-        if (item['local_id'] == null || item['status'] == null) continue;
-
-        await LocalDB.updateIncidentStatusByLocalId(
-          item['local_id'],
-          item['status'],
-        );
-      }
-
-      print('✅ Estados locales actualizados');
-    } catch (e) {
-      print('🔥 Error sincronizando estados: $e');
-    }
   }
 
   void stop() {

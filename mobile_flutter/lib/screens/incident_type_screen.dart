@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:siaas/widgets/incident_type_card.dart';
+// 1. IMPORTAR LA LIBRERÍA DE VIBRACIÓN
+import 'package:vibration/vibration.dart';
 
 class IncidentTypeScreen extends StatefulWidget {
   const IncidentTypeScreen({super.key});
@@ -78,8 +80,14 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                       title: label,
                       assetPath: asset,
                       isSelected: selected == id,
-                      onTap: () {
+                      onTap: () async {
                         setState(() => selected = id);
+
+                        // 2. MEJORA: Feedback táctil corto (Tic) al seleccionar
+                        // Ayuda a confirmar la selección bajo sol intenso
+                        if (await Vibration.hasVibrator() ?? false) {
+                          Vibration.vibrate(duration: 40);
+                        }
                       },
                     );
                   },
@@ -119,7 +127,12 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                         borderRadius: BorderRadius.circular(14),
                         onTap: !isEnabled
                             ? null
-                            : () {
+                            : () async {
+                          // 3. MEJORA: Vibración de confirmación de acción
+                          if (await Vibration.hasVibrator() ?? false) {
+                            Vibration.vibrate(duration: 100);
+                          }
+
                           Navigator.pushNamed(
                             context,
                             '/report',
