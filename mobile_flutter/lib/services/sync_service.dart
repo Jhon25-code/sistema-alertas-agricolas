@@ -27,18 +27,22 @@ class SyncService {
   Future<void> startSyncListener() async {
     print('🔄 SyncService ACTIVADO');
 
+    // Evitar duplicar listeners si se llama más de una vez
+    await _subscription?.cancel();
+
     // Cargar credenciales al arrancar
     await AuthService.init();
 
-    _subscription =
-        _connectivity.onConnectivityChanged.listen((results) async {
-          print('📡 Conectividad detectada: $results');
-          // Si hay conexión (móvil o wifi), intentamos sincronizar
-          if (results.contains(ConnectivityResult.mobile) ||
-              results.contains(ConnectivityResult.wifi)) {
-            await syncNow();
-          }
-        });
+    _subscription = _connectivity.onConnectivityChanged.listen((results) async {
+      print('📡 Conectividad detectada: $results');
+
+      // Si NO está en none, hay alguna conexión disponible
+      final hasConnection = !results.contains(ConnectivityResult.none);
+
+      if (hasConnection) {
+        await syncNow();
+      }
+    });
   }
 
   /// ===============================
@@ -57,19 +61,18 @@ class SyncService {
 
       if (token == null || token.isEmpty) {
         print('⚠️ Cancelado: No hay token guardado. Usuario debe loguearse.');
-        _isSyncing = false;
         return;
       }
 
-      // Debug: Verificamos si estamos enviando token (solo primeros 10 chars)
-      print('🔑 Usando Token: ${token.substring(0, 10)}...');
+      // Debug seguro: no revienta si el token es corto
+      final preview = token.length >= 10 ? token.substring(0, 10) : token;
+      print('🔑 Usando Token: $preview... (len=${token.length})');
 
       // 2. BUSCAR PENDIENTES
       final pending = await LocalDB.getPendingIncidents();
       print('📦 Incidentes en cola: ${pending.length}');
 
       if (pending.isEmpty) {
-        _isSyncing = false;
         return;
       }
 
@@ -87,17 +90,23 @@ class SyncService {
           };
 
           print('➡️ Enviando ID Local ${incident['local_id']}...');
+          print('📤 Payload: ${jsonEncode(payload)}');
+          print('➡️ URL: $_backendUrl');
 
-          final response = await http.post(
+          final response = await http
+              .post(
             Uri.parse(_backendUrl),
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
               'Authorization': 'Bearer $token', // AQUÍ VA LA LLAVE
             },
             body: jsonEncode(payload),
-          );
+          )
+              .timeout(const Duration(seconds: 20));
 
           print('🔙 Respuesta Servidor: ${response.statusCode}');
+          print('🔙 Body: ${response.body}');
 
           if (response.statusCode == 200 || response.statusCode == 201) {
             // ✅ ÉXITO
@@ -113,15 +122,16 @@ class SyncService {
             await HapticFeedback.heavyImpact();
             await Future.delayed(const Duration(milliseconds: 100));
             await HapticFeedback.heavyImpact();
-
           } else if (response.statusCode == 401) {
             // ⛔ ERROR DE TOKEN
-            print('⛔ TOKEN VENCIDO O INCORRECTO. Se requiere Relogin.');
+            print('⛔ TOKEN VENCIDO / NO PROPORCIONADO / INCORRECTO. Se requiere Relogin.');
             // Aquí podrías forzar cierre de sesión si quisieras
           } else {
             // OTROS ERRORES
             print('❌ Error del servidor: ${response.body}');
           }
+        } on TimeoutException catch (_) {
+          print('⏱️ Timeout enviando incidente (posible red lenta o backend dormido).');
         } catch (e) {
           print('🔥 Error de red al enviar incidente: $e');
         }
@@ -136,5 +146,6 @@ class SyncService {
 
   void stop() {
     _subscription?.cancel();
+    _subscription = null;
   }
 }
