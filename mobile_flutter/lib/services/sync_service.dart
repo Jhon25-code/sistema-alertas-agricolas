@@ -3,8 +3,7 @@ import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
-// ✅ 1. CAMBIO: Usamos vibración nativa (cero errores)
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // Para vibración nativa
 
 import 'local_db.dart';
 import 'package:siaas/config/api_config.dart';
@@ -16,10 +15,7 @@ class SyncService {
   SyncService._internal();
 
   final Connectivity _connectivity = Connectivity();
-
-  /// Connectivity v6+
   StreamSubscription<List<ConnectivityResult>>? _subscription;
-
   bool _isSyncing = false;
 
   /// URL backend
@@ -31,13 +27,15 @@ class SyncService {
   Future<void> startSyncListener() async {
     print('🔄 SyncService ACTIVADO');
 
+    // Cargar credenciales al arrancar
     await AuthService.init();
 
     _subscription =
         _connectivity.onConnectivityChanged.listen((results) async {
-          print('📡 Conectividad: $results');
-
-          if (!results.contains(ConnectivityResult.none)) {
+          print('📡 Conectividad detectada: $results');
+          // Si hay conexión (móvil o wifi), intentamos sincronizar
+          if (results.contains(ConnectivityResult.mobile) ||
+              results.contains(ConnectivityResult.wifi)) {
             await syncNow();
           }
         });
@@ -47,83 +45,93 @@ class SyncService {
   /// SINCRONIZACIÓN PRINCIPAL
   /// ===============================
   Future<void> syncNow() async {
-    if (_isSyncing) {
-      print('⏳ Sincronización en curso...');
-      return;
-    }
+    if (_isSyncing) return; // Evitar doble ejecución
 
     _isSyncing = true;
-    print('🚀 Iniciando sincronización');
+    print('🚀 Iniciando proceso de sincronización...');
 
-    await AuthService.init();
-    final token = AuthService.token;
+    try {
+      // 1. OBTENER TOKEN FRESCO (Vital por el cambio de contraseña)
+      await AuthService.init();
+      final token = AuthService.token;
 
-    if (token == null) {
-      print('❌ No hay token');
-      _isSyncing = false;
-      return;
-    }
+      if (token == null || token.isEmpty) {
+        print('⚠️ Cancelado: No hay token guardado. Usuario debe loguearse.');
+        _isSyncing = false;
+        return;
+      }
 
-    final pending = await LocalDB.getPendingIncidents();
-    print('📦 Incidentes pendientes: ${pending.length}');
+      // Debug: Verificamos si estamos enviando token (solo primeros 10 chars)
+      print('🔑 Usando Token: ${token.substring(0, 10)}...');
 
-    if (pending.isEmpty) {
-      print('✅ Nada que sincronizar');
-      _isSyncing = false;
-      return;
-    }
+      // 2. BUSCAR PENDIENTES
+      final pending = await LocalDB.getPendingIncidents();
+      print('📦 Incidentes en cola: ${pending.length}');
 
-    for (final incident in pending) {
-      try {
-        final payload = {
-          'tipo': incident['tipo'],
-          'descripcion': incident['descripcion'],
-          'latitude': incident['lat'],
-          'longitude': incident['lng'],
-          'smart_score': incident['smart_score'],
-          'local_id': incident['local_id'], // 🔥 CLAVE
-        };
+      if (pending.isEmpty) {
+        _isSyncing = false;
+        return;
+      }
 
-        print('➡️ Enviando incidente: $payload');
+      // 3. ENVIAR UNO POR UNO
+      for (final incident in pending) {
+        try {
+          final payload = {
+            'tipo': incident['tipo'],
+            'descripcion': incident['descripcion'],
+            'latitude': incident['lat'],
+            'longitude': incident['lng'],
+            'smart_score': incident['smart_score'],
+            'local_id': incident['local_id'],
+            // Fecha opcional, el servidor pone la suya si no se envía
+          };
 
-        final response = await http.post(
-          Uri.parse(_backendUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode(payload),
-        );
+          print('➡️ Enviando ID Local ${incident['local_id']}...');
 
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          // ✅ CAMBIO CLAVE
-          await LocalDB.updateIncidentStatusByLocalId(
-            incident['local_id'],
-            'NUEVA',
+          final response = await http.post(
+            Uri.parse(_backendUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token', // AQUÍ VA LA LLAVE
+            },
+            body: jsonEncode(payload),
           );
 
-          await LocalDB.markAsSynced(incident['id']);
+          print('🔙 Respuesta Servidor: ${response.statusCode}');
 
-          print('✅ Sincronizado local_id ${incident['local_id']}');
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            // ✅ ÉXITO
+            await LocalDB.updateIncidentStatusByLocalId(
+              incident['local_id'],
+              'ENVIADO', // Cambiamos estado local para que se ponga verde
+            );
 
-          // ✅ INNOVACIÓN: Feedback Háptico "Latido" (Nativo)
-          // Vibra 3 veces fuerte para confirmar que salió del teléfono (tic-tic-tic)
-          await HapticFeedback.heavyImpact();
-          await Future.delayed(const Duration(milliseconds: 150));
-          await HapticFeedback.heavyImpact();
-          await Future.delayed(const Duration(milliseconds: 150));
-          await HapticFeedback.heavyImpact();
+            await LocalDB.markAsSynced(incident['id']);
+            print('✅ ¡Sincronizado con éxito!');
 
-        } else {
-          print('❌ Error backend ${response.statusCode}: ${response.body}');
+            // Feedback Háptico (Latido)
+            await HapticFeedback.heavyImpact();
+            await Future.delayed(const Duration(milliseconds: 100));
+            await HapticFeedback.heavyImpact();
+
+          } else if (response.statusCode == 401) {
+            // ⛔ ERROR DE TOKEN
+            print('⛔ TOKEN VENCIDO O INCORRECTO. Se requiere Relogin.');
+            // Aquí podrías forzar cierre de sesión si quisieras
+          } else {
+            // OTROS ERRORES
+            print('❌ Error del servidor: ${response.body}');
+          }
+        } catch (e) {
+          print('🔥 Error de red al enviar incidente: $e');
         }
-      } catch (e) {
-        print('🔥 Error sincronizando incidente: $e');
       }
+    } catch (e) {
+      print('🔥 Error general en SyncService: $e');
+    } finally {
+      _isSyncing = false;
+      print('🏁 Sincronización finalizada.');
     }
-
-    _isSyncing = false;
-    print('🏁 Sincronización finalizada');
   }
 
   void stop() {
