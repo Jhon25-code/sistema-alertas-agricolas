@@ -5,7 +5,6 @@ import 'package:siaas/screens/incident_type_screen.dart';
 import 'package:siaas/screens/report_screen.dart';
 import 'package:siaas/screens/pending_sync_screen.dart';
 import 'package:siaas/screens/response_screen.dart';
-import 'package:siaas/screens/login_screen.dart';
 
 // 🔐 Auth
 import 'package:siaas/services/auth_service.dart';
@@ -13,10 +12,10 @@ import 'package:siaas/services/auth_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔐 SOLO carga token guardado (NO login automático)
+  // ✅ Inicializa auth (solo carga token o auto-login demo según tu AuthService)
   await AuthService.init();
 
-  // 🔄 SyncService ya se inicia en SplashScreen (evitamos duplicar listeners)
+  // 🔄 SyncService se inicia en SplashScreen (evitamos duplicar listeners)
   runApp(const SiaasApp());
 }
 
@@ -34,7 +33,6 @@ class SiaasApp extends StatelessWidget {
 
       routes: {
         '/': (context) => const SplashScreen(),
-        '/login': (context) => const LoginScreen(),
         '/incident_type': (context) => const IncidentTypeScreen(),
         '/report': (context) => const ReportScreen(),
         '/pending': (context) => const PendingSyncScreen(),

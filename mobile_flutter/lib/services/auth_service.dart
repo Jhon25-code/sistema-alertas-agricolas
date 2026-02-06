@@ -7,12 +7,15 @@ class AuthService {
   static const _tokenKey = 'auth_token';
   static String? _token;
 
+  /// 👤 CREDENCIALES FIJAS (DEMO)
+  static const String _demoUser = 'trabajador';
+  static const String _demoPass = '123456';
+
   /// Token en memoria
   static String? get token => _token;
 
   /// ===============================
-  /// INIT: SOLO carga token guardado
-  /// (NO hace login automático)
+  /// INIT: carga token o hace login directo
   /// ===============================
   static Future<void> init() async {
     if (_token != null) return;
@@ -20,56 +23,46 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final savedToken = prefs.getString(_tokenKey);
 
+    // 1️⃣ Si ya hay token guardado → usarlo
     if (savedToken != null && savedToken.isNotEmpty) {
       _token = savedToken;
       print("🔐 TOKEN RECUPERADO DE STORAGE");
-    } else {
-      print("⚠️ No hay token guardado");
+      return;
     }
-  }
 
-  /// ===============================
-  /// LOGIN EXPLÍCITO (usuario/password)
-  /// ===============================
-  static Future<bool> login({
-    required String username,
-    required String password,
-  }) async {
+    // 2️⃣ NO hay token → login automático con credenciales fijas
+    print("🔑 No hay token. Haciendo login automático (DEMO)...");
+
     final url = "${ApiConfig.baseUrl}/auth/login";
 
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "username": username,
-          "password": password,
-        }),
-      );
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: jsonEncode({
+        "username": _demoUser,
+        "password": _demoPass,
+      }),
+    );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final token = data["token"];
+    print("🔙 LOGIN status: ${response.statusCode}");
+    print("🔙 LOGIN body: ${response.body}");
 
-        if (token == null || token.isEmpty) {
-          print("❌ Login sin token válido");
-          return false;
-        }
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final token = data["token"];
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_tokenKey, token);
-
+      if (token is String && token.isNotEmpty) {
         _token = token;
-
-        print("🔐 LOGIN OK - TOKEN GUARDADO");
-        return true;
+        await prefs.setString(_tokenKey, token);
+        print("✅ LOGIN AUTOMÁTICO OK - TOKEN GUARDADO");
       } else {
-        print("❌ ERROR LOGIN: ${response.body}");
-        return false;
+        print("❌ LOGIN OK pero no llegó token");
       }
-    } catch (e) {
-      print("🔥 ERROR LOGIN EXCEPTION: $e");
-      return false;
+    } else {
+      print("❌ ERROR LOGIN AUTOMÁTICO");
     }
   }
 
@@ -83,17 +76,18 @@ class AuthService {
 
     return {
       "Content-Type": "application/json",
-      "Authorization": _token != null ? "Bearer $_token" : "",
+      "Accept": "application/json",
+      if (_token != null) "Authorization": "Bearer $_token",
     };
   }
 
   /// ===============================
-  /// Cerrar sesión
+  /// Cerrar sesión (opcional)
   /// ===============================
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     _token = null;
-    print("🔓 Sesión cerrada, token eliminado");
+    print("🔓 Token eliminado");
   }
 }

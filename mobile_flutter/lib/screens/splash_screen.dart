@@ -20,7 +20,7 @@ class _SplashScreenState extends State<SplashScreen> {
     SyncService().startSyncListener();
     debugPrint('✅ SyncService iniciado desde SplashScreen');
 
-    // ✅ Verificar token guardado (sin login automático)
+    // ✅ Cargar token / auto-login (según tu AuthService)
     _checkAuth();
   }
 
@@ -35,11 +35,8 @@ class _SplashScreenState extends State<SplashScreen> {
     });
 
     if (token == null || token.isEmpty) {
-      debugPrint('⚠️ No hay token guardado → redirigiendo a /login');
-      // No obligamos navegación inmediata si quieres que el usuario vea el splash,
-      // pero lo dejamos listo para que al tocar el botón vaya a login.
-      // Si deseas redirigir automáticamente, descomenta lo siguiente:
-      // Navigator.pushReplacementNamed(context, '/login');
+      debugPrint('⚠️ No hay token guardado (modo ingreso directo).');
+      // ✅ No redirigimos a /login porque no usaremos login screen.
     } else {
       debugPrint('🔐 Token detectado en storage (len=${token.length})');
     }
@@ -54,18 +51,14 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _goNext() async {
-    // Asegurar que ya se revisó auth
+    // Asegurar que ya se revisó auth (no bloquea navegación)
     if (!_authChecked) {
       await _checkAuth();
       if (!mounted) return;
     }
 
-    final token = AuthService.token;
-    if (token == null || token.isEmpty) {
-      Navigator.pushReplacementNamed(context, '/login');
-    } else {
-      Navigator.pushReplacementNamed(context, '/incident_type');
-    }
+    // ✅ En modo ingreso directo SIEMPRE avanzamos
+    Navigator.pushReplacementNamed(context, '/incident_type');
   }
 
   @override
