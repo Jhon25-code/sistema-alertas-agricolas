@@ -15,8 +15,12 @@ class SyncService {
   SyncService._internal();
 
   final Connectivity _connectivity = Connectivity();
-  StreamSubscription<ConnectivityResult>? _subscription;
+
+  // ✅ connectivity_plus v6+: Stream emite List<ConnectivityResult>
+  StreamSubscription<List<ConnectivityResult>>? _subscription;
+
   bool _isSyncing = false;
+  bool _authInvalid = false; // evita reintentos infinitos si token es inválido
 
   /// URL backend
   static final String _backendUrl = "${ApiConfig.baseUrl}/incidents";
@@ -34,28 +38,25 @@ class SyncService {
     // Cargar token guardado (NO hace login)
     await AuthService.init();
 
-    final token = AuthService.token;
-    if (token == null || token.isEmpty) {
-      print('⛔ SyncService NO iniciado: usuario no logueado');
-      return;
-    }
-
-    // Chequeo inicial REAL
+    // ✅ Chequeo inicial v6+: devuelve List<ConnectivityResult>
     final initial = await _connectivity.checkConnectivity();
     print('📡 Conectividad inicial: $initial');
 
-    if (initial != ConnectivityResult.none) {
+    final hasInitialConnection = !initial.contains(ConnectivityResult.none);
+    if (hasInitialConnection) {
       await syncNow();
     }
 
-    _subscription =
-        _connectivity.onConnectivityChanged.listen((ConnectivityResult result) async {
-          print('📡 Conectividad detectada: $result');
+    _subscription = _connectivity.onConnectivityChanged.listen(
+          (List<ConnectivityResult> results) async {
+        print('📡 Conectividad detectada: $results');
 
-          if (result != ConnectivityResult.none) {
-            await syncNow();
-          }
-        });
+        final hasConnection = !results.contains(ConnectivityResult.none);
+        if (hasConnection) {
+          await syncNow();
+        }
+      },
+    );
   }
 
   // =========================================================
@@ -64,6 +65,11 @@ class SyncService {
   Future<void> syncNow() async {
     if (_isSyncing) return;
 
+    if (_authInvalid) {
+      print('⛔ Sync bloqueado: token inválido. Requiere relogin.');
+      return;
+    }
+
     _isSyncing = true;
     print('🚀 Iniciando sincronización...');
 
@@ -71,7 +77,7 @@ class SyncService {
       final token = AuthService.token;
 
       if (token == null || token.isEmpty) {
-        print('⛔ Cancelado: no hay token');
+        print('⚠️ No hay token. Se omite sync hasta que el usuario inicie sesión.');
         return;
       }
 
@@ -80,16 +86,24 @@ class SyncService {
 
       final pending = await LocalDB.getPendingIncidents();
       print('📦 Incidentes pendientes: ${pending.length}');
-
       if (pending.isEmpty) return;
 
       for (final incident in pending) {
         try {
-          final lat = incident['lat'];
-          final lng = incident['lng'];
+          final latRaw = incident['lat'];
+          final lngRaw = incident['lng'];
+
+          if (latRaw == null || lngRaw == null) {
+            print('⚠️ Incidente ${incident['local_id']} sin GPS (null). Omitido.');
+            continue;
+          }
+
+          // Convertir a double si viene como string/int
+          final lat = (latRaw is num) ? latRaw.toDouble() : double.tryParse(latRaw.toString());
+          final lng = (lngRaw is num) ? lngRaw.toDouble() : double.tryParse(lngRaw.toString());
 
           if (lat == null || lng == null) {
-            print('⚠️ Incidente ${incident['local_id']} sin GPS. Omitido.');
+            print('⚠️ Incidente ${incident['local_id']} GPS inválido. Omitido.');
             continue;
           }
 
@@ -101,7 +115,7 @@ class SyncService {
             'smart_score': incident['smart_score'],
           };
 
-          print('📤 Enviando incidente ${incident['local_id']}');
+          print('📤 Enviando incidente ${incident['local_id']} -> $_backendUrl');
           print('📤 Payload: ${jsonEncode(payload)}');
 
           final response = await http
@@ -109,6 +123,7 @@ class SyncService {
             Uri.parse(_backendUrl),
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
               'Authorization': 'Bearer $token',
             },
             body: jsonEncode(payload),
@@ -131,6 +146,7 @@ class SyncService {
             await Future.delayed(const Duration(milliseconds: 80));
             await HapticFeedback.heavyImpact();
           } else if (response.statusCode == 401) {
+            _authInvalid = true;
             print('⛔ Token inválido o vencido. Requiere login.');
             return;
           } else {
@@ -148,6 +164,11 @@ class SyncService {
       _isSyncing = false;
       print('🏁 Sincronización finalizada');
     }
+  }
+
+  /// Llama a esto después de un login exitoso si quieres re-habilitar sync inmediatamente.
+  void resetAuthBlock() {
+    _authInvalid = false;
   }
 
   void stop() {
