@@ -30,8 +30,17 @@ class SyncService {
     // Evitar duplicar listeners si se llama más de una vez
     await _subscription?.cancel();
 
-    // Cargar credenciales al arrancar
+    // ✅ IMPORTANTE:
+    // AuthService.init() aquí debe SOLO cargar token guardado (NO hacer /auth/login).
     await AuthService.init();
+
+    // ✅ CHEQUEO INICIAL: connectivity_plus no siempre emite estado inicial
+    final initial = await _connectivity.checkConnectivity();
+    print('📡 Conectividad inicial: $initial');
+    final hasInitialConnection = !initial.contains(ConnectivityResult.none);
+    if (hasInitialConnection) {
+      await syncNow();
+    }
 
     _subscription = _connectivity.onConnectivityChanged.listen((results) async {
       print('📡 Conectividad detectada: $results');
@@ -55,8 +64,9 @@ class SyncService {
     print('🚀 Iniciando proceso de sincronización...');
 
     try {
-      // 1. OBTENER TOKEN FRESCO (Vital por el cambio de contraseña)
-      await AuthService.init();
+      // ✅ NO volver a llamar AuthService.init() aquí, porque en tu caso
+      // estaba intentando /auth/login y fallando con "Credenciales incorrectas".
+      // Solo usamos el token ya guardado por el login manual.
       final token = AuthService.token;
 
       if (token == null || token.isEmpty) {
@@ -79,11 +89,22 @@ class SyncService {
       // 3. ENVIAR UNO POR UNO
       for (final incident in pending) {
         try {
+          // ✅ Si no hay coordenadas, no enviamos (en tus logs estaban null)
+          final lat = incident['lat'];
+          final lng = incident['lng'];
+
+          if (lat == null || lng == null) {
+            print(
+              '⚠️ Incidente ${incident['local_id']} sin coordenadas (lat/lng null). No se envía.',
+            );
+            continue;
+          }
+
           final payload = {
             'tipo': incident['tipo'],
             'descripcion': incident['descripcion'],
-            'latitude': incident['lat'],
-            'longitude': incident['lng'],
+            'latitude': lat,
+            'longitude': lng,
             'smart_score': incident['smart_score'],
             'local_id': incident['local_id'],
             // Fecha opcional, el servidor pone la suya si no se envía
@@ -124,8 +145,9 @@ class SyncService {
             await HapticFeedback.heavyImpact();
           } else if (response.statusCode == 401) {
             // ⛔ ERROR DE TOKEN
-            print('⛔ TOKEN VENCIDO / NO PROPORCIONADO / INCORRECTO. Se requiere Relogin.');
-            // Aquí podrías forzar cierre de sesión si quisieras
+            print(
+              '⛔ TOKEN VENCIDO / NO PROPORCIONADO / INCORRECTO. Se requiere Relogin.',
+            );
           } else {
             // OTROS ERRORES
             print('❌ Error del servidor: ${response.body}');
