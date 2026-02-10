@@ -48,6 +48,8 @@ class _LoginScreenState extends State<LoginScreen> {
         // init() aquí solo refresca token en memoria desde storage (seguro)
         await AuthService.init();
 
+        if (!mounted) return;
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const IncidentTypeScreen()),
         );
@@ -58,8 +60,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       setState(() => _error = 'Error de red. Intenta nuevamente.');
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 

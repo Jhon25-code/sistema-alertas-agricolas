@@ -57,11 +57,11 @@ class LocalDB {
   // AGREGAR COLUMNA SI FALTA
   // ============================
   static Future<void> _addColumnIfMissing(
-      Database db,
-      String table,
-      String column,
-      String type,
-      ) async {
+    Database db,
+    String table,
+    String column,
+    String type,
+  ) async {
     final res = await db.rawQuery("PRAGMA table_info($table);");
     final exists = res.any((c) => c['name'] == column);
 
@@ -112,9 +112,9 @@ class LocalDB {
   // MARCAR COMO SINCRONIZADO (CORREGIDO)
   // ============================
   static Future<int> markAsSynced(
-      int id, {
-        String statusFromServer = 'NUEVA',
-      }) async {
+    int id, {
+    String statusFromServer = 'NUEVA',
+  }) async {
     final db = await _openDB();
 
     return await db.update(
@@ -132,9 +132,9 @@ class LocalDB {
   // ACTUALIZAR ESTADO POR local_id
   // ============================
   static Future<int> updateIncidentStatusByLocalId(
-      int localId,
-      String newStatus,
-      ) async {
+    int localId,
+    String newStatus,
+  ) async {
     final db = await _openDB();
 
     return await db.update(
@@ -151,9 +151,9 @@ class LocalDB {
   // METODO COMPATIBLE (NO SE TOCA)
   // ============================
   static Future<int> updateIncidentStatus(
-      int localId,
-      String newStatus,
-      ) async {
+    int localId,
+    String newStatus,
+  ) async {
     return updateIncidentStatusByLocalId(localId, newStatus);
   }
 

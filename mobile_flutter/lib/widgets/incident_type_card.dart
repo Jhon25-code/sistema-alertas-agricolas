@@ -30,9 +30,8 @@ class IncidentTypeCard extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF1E88E5)
-                  : Colors.grey.shade300,
+              color:
+                  isSelected ? const Color(0xFF1E88E5) : Colors.grey.shade300,
               width: isSelected ? 3 : 1.5,
             ),
             boxShadow: [
@@ -69,8 +68,7 @@ class IncidentTypeCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight:
-                  isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: Colors.grey.shade900,
                 ),
               ),

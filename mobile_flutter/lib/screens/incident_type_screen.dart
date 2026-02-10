@@ -12,10 +12,22 @@ class IncidentTypeScreen extends StatefulWidget {
 
 class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
   final List<Map<String, String>> types = const [
-    {'id': 'picadura_abeja', 'label': 'Picadura', 'asset': 'assets/icons/icons_bee.png'},
+    {
+      'id': 'picadura_abeja',
+      'label': 'Picadura',
+      'asset': 'assets/icons/icons_bee.png'
+    },
     {'id': 'corte', 'label': 'Corte', 'asset': 'assets/icons/icons_cut.png'},
-    {'id': 'insolacion', 'label': 'Insolación', 'asset': 'assets/icons/icons_sun.png'},
-    {'id': 'intoxicacion', 'label': 'Intoxicación', 'asset': 'assets/icons/icons_skull.png'},
+    {
+      'id': 'insolacion',
+      'label': 'Insolación',
+      'asset': 'assets/icons/icons_sun.png'
+    },
+    {
+      'id': 'intoxicacion',
+      'label': 'Intoxicación',
+      'asset': 'assets/icons/icons_skull.png'
+    },
     {'id': 'caida', 'label': 'Caída', 'asset': 'assets/icons/icons_fall.png'},
     {'id': 'otro', 'label': 'Otros', 'asset': 'assets/icons/icons_other.png'},
   ];
@@ -106,17 +118,17 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                     decoration: BoxDecoration(
                       color: isEnabled
                           ? const Color(0xFF1976D2)
-                          : const Color(0xFF1976D2).withOpacity(0.35),
+                          : const Color(0xFF1976D2).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: isEnabled
                           ? [
-                        BoxShadow(
-                          color: const Color(0xFF1976D2)
-                              .withOpacity(0.35),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
+                              BoxShadow(
+                                color:
+                                    const Color(0xFF1976D2).withValues(alpha: 0.2),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
                           : [],
                     ),
                     child: Material(
@@ -126,15 +138,15 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                         onTap: !isEnabled
                             ? null
                             : () async {
-                          // 3. CORRECCIÓN: Confirmación táctil más notable
-                          await HapticFeedback.mediumImpact();
+                                // 3. CORRECCIÓN: Confirmación táctil más notable
+                                await HapticFeedback.mediumImpact();
 
-                          Navigator.pushNamed(
-                            context,
-                            '/report',
-                            arguments: {'type': selected},
-                          );
-                        },
+                                Navigator.pushNamed(
+                                  context,
+                                  '/report',
+                                  arguments: {'type': selected},
+                                );
+                              },
                         child: Center(
                           child: Text(
                             'SIGUIENTE',
@@ -142,9 +154,7 @@ class _IncidentTypeScreenState extends State<IncidentTypeScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1,
-                              color: isEnabled
-                                  ? Colors.white
-                                  : Colors.white70,
+                              color: isEnabled ? Colors.white : Colors.white70,
                             ),
                           ),
                         ),

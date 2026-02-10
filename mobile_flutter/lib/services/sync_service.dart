@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import 'local_db.dart';
 import 'package:siaas/config/api_config.dart';
@@ -29,7 +30,7 @@ class SyncService {
   // INICIAR ESCUCHA DE CONECTIVIDAD
   // =========================================================
   Future<void> startSyncListener() async {
-    print('🔄 SyncService ACTIVADO');
+    debugPrint('🔄 SyncService ACTIVADO');
 
     // Evitar listeners duplicados
     await _subscription?.cancel();
@@ -40,7 +41,7 @@ class SyncService {
 
     // ✅ Chequeo inicial v6+: devuelve List<ConnectivityResult>
     final initial = await _connectivity.checkConnectivity();
-    print('📡 Conectividad inicial: $initial');
+    debugPrint('📡 Conectividad inicial: $initial');
 
     final hasInitialConnection = !initial.contains(ConnectivityResult.none);
     if (hasInitialConnection) {
@@ -49,7 +50,7 @@ class SyncService {
 
     _subscription = _connectivity.onConnectivityChanged.listen(
           (List<ConnectivityResult> results) async {
-        print('📡 Conectividad detectada: $results');
+        debugPrint('📡 Conectividad detectada: $results');
 
         final hasConnection = !results.contains(ConnectivityResult.none);
         if (hasConnection) {
@@ -66,26 +67,28 @@ class SyncService {
     if (_isSyncing) return;
 
     if (_authInvalid) {
-      print('⛔ Sync bloqueado: token inválido. Requiere relogin.');
+      debugPrint('⛔ Sync bloqueado: token inválido. Requiere relogin.');
       return;
     }
 
     _isSyncing = true;
-    print('🚀 Iniciando sincronización...');
+    debugPrint('🚀 Iniciando sincronización...');
 
     try {
       final token = AuthService.token;
 
       if (token == null || token.isEmpty) {
-        print('⚠️ No hay token. Se omite sync hasta que el usuario inicie sesión.');
+        debugPrint(
+          '⚠️ No hay token. Se omite sync hasta que el usuario inicie sesión.',
+        );
         return;
       }
 
       final preview = token.length > 10 ? token.substring(0, 10) : token;
-      print('🔑 Token activo: $preview... (len=${token.length})');
+      debugPrint('🔑 Token activo: $preview... (len=${token.length})');
 
       final pending = await LocalDB.getPendingIncidents();
-      print('📦 Incidentes pendientes: ${pending.length}');
+      debugPrint('📦 Incidentes pendientes: ${pending.length}');
       if (pending.isEmpty) return;
 
       for (final incident in pending) {
@@ -94,16 +97,24 @@ class SyncService {
           final lngRaw = incident['lng'];
 
           if (latRaw == null || lngRaw == null) {
-            print('⚠️ Incidente ${incident['local_id']} sin GPS (null). Omitido.');
+            debugPrint(
+              '⚠️ Incidente ${incident['local_id']} sin GPS (null). Omitido.',
+            );
             continue;
           }
 
           // Convertir a double si viene como string/int
-          final lat = (latRaw is num) ? latRaw.toDouble() : double.tryParse(latRaw.toString());
-          final lng = (lngRaw is num) ? lngRaw.toDouble() : double.tryParse(lngRaw.toString());
+          final lat = (latRaw is num)
+              ? latRaw.toDouble()
+              : double.tryParse(latRaw.toString());
+          final lng = (lngRaw is num)
+              ? lngRaw.toDouble()
+              : double.tryParse(lngRaw.toString());
 
           if (lat == null || lng == null) {
-            print('⚠️ Incidente ${incident['local_id']} GPS inválido. Omitido.');
+            debugPrint(
+              '⚠️ Incidente ${incident['local_id']} GPS inválido. Omitido.',
+            );
             continue;
           }
 
@@ -115,8 +126,10 @@ class SyncService {
             'smart_score': incident['smart_score'],
           };
 
-          print('📤 Enviando incidente ${incident['local_id']} -> $_backendUrl');
-          print('📤 Payload: ${jsonEncode(payload)}');
+          debugPrint(
+            '📤 Enviando incidente ${incident['local_id']} -> $_backendUrl',
+          );
+          debugPrint('📤 Payload: ${jsonEncode(payload)}');
 
           final response = await http
               .post(
@@ -130,8 +143,8 @@ class SyncService {
           )
               .timeout(const Duration(seconds: 20));
 
-          print('🔙 Status: ${response.statusCode}');
-          print('🔙 Body: ${response.body}');
+          debugPrint('🔙 Status: ${response.statusCode}');
+          debugPrint('🔙 Body: ${response.body}');
 
           if (response.statusCode == 200 || response.statusCode == 201) {
             await LocalDB.updateIncidentStatusByLocalId(
@@ -140,29 +153,29 @@ class SyncService {
             );
             await LocalDB.markAsSynced(incident['id']);
 
-            print('✅ Incidente sincronizado');
+            debugPrint('✅ Incidente sincronizado');
 
             await HapticFeedback.heavyImpact();
             await Future.delayed(const Duration(milliseconds: 80));
             await HapticFeedback.heavyImpact();
           } else if (response.statusCode == 401) {
             _authInvalid = true;
-            print('⛔ Token inválido o vencido. Requiere login.');
+            debugPrint('⛔ Token inválido o vencido. Requiere login.');
             return;
           } else {
-            print('❌ Error servidor: ${response.body}');
+            debugPrint('❌ Error servidor: ${response.body}');
           }
         } on TimeoutException {
-          print('⏱️ Timeout (backend dormido o red lenta)');
+          debugPrint('⏱️ Timeout (backend dormido o red lenta)');
         } catch (e) {
-          print('🔥 Error enviando incidente: $e');
+          debugPrint('🔥 Error enviando incidente: $e');
         }
       }
     } catch (e) {
-      print('🔥 Error general SyncService: $e');
+      debugPrint('🔥 Error general SyncService: $e');
     } finally {
       _isSyncing = false;
-      print('🏁 Sincronización finalizada');
+      debugPrint('🏁 Sincronización finalizada');
     }
   }
 

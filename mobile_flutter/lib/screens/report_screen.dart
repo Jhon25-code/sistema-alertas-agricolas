@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
 import '../services/local_db.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -12,6 +15,7 @@ class _ReportScreenState extends State<ReportScreen> {
   String type = 'picadura_abeja';
   String severity = 'medio';
   String description = "";
+  bool _isSaving = false; // Para evitar doble clic
 
   //  HORA SEGURA
   String _getSafeHour() {
@@ -22,13 +26,41 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
     final args =
     ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
     if (args != null && args['type'] is String) {
       type = args['type'];
     }
+  }
+
+  /// Función auxiliar para obtener posición actual
+  Future<Position?> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // 1. Ver si el GPS está prendido
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('El servicio de ubicación está desactivado.');
+    }
+
+    // 2. Ver permisos
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('Permiso de ubicación denegado.');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error('Permiso de ubicación denegado permanentemente.');
+    }
+
+    // 3. Obtener ubicación (High accuracy para mejor precisión)
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
   }
 
   @override
@@ -37,14 +69,12 @@ class _ReportScreenState extends State<ReportScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F5EC),
-
       appBar: AppBar(
         backgroundColor: const Color(0xFF1976D2),
         elevation: 0,
         automaticallyImplyLeading: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          //  REGRESAR SIEMPRE A TIPO DE INCIDENTE
           onPressed: () {
             Navigator.pushReplacementNamed(context, '/incident_type');
           },
@@ -59,7 +89,6 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
         ),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -81,7 +110,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
             const SizedBox(height: 10),
 
-            // -------------------- Nombre del incidente --------------------
+            // -------------------- Nombre --------------------
             Text(
               _labelFor(type),
               textAlign: TextAlign.center,
@@ -103,16 +132,13 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
 
             const SizedBox(height: 4),
-
-            // -------------------- Ubicación --------------------
             const Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "UBICACIÓN: Se añadirá al sincronizar",
-                style: TextStyle(fontSize: 14),
+                "UBICACIÓN: Se detectará al enviar...",
+                style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
             ),
-
             const SizedBox(height: 20),
 
             // -------------------- Severidad --------------------
@@ -120,9 +146,7 @@ class _ReportScreenState extends State<ReportScreen> {
               alignment: Alignment.centerLeft,
               child: Text("Severidad", style: TextStyle(fontSize: 16)),
             ),
-
             const SizedBox(height: 8),
-
             Wrap(
               spacing: 10,
               children: [
@@ -154,49 +178,85 @@ class _ReportScreenState extends State<ReportScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD32F2F),
+                  backgroundColor:
+                  _isSaving ? Colors.grey : const Color(0xFFD32F2F),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
                 ),
-                onPressed: () async {
-                  print(" ENVIAR PRESIONADO");
-
-                  final incidente = {
-                    "tipo": type,
-                    "descripcion": description,
-                    "ubicacion": "pendiente",
-                    "hora": hour,
-                    "prioridad": severity,
-                    "fotoPath": "",
-                  };
-
-                  print(" Datos a guardar: $incidente");
-                  print(" Guardando en SQLite...");
-
-                  final id = await LocalDB.saveIncident(incidente);
-
-                  print(" Guardado con ID $id");
-
-                  if (!mounted) return;
+                onPressed: _isSaving
+                    ? null
+                    : () async {
+                  setState(() => _isSaving = true); // Bloquear botón
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                          'Incidente guardado (pendiente de sincronización)'),
+                          'Obteniendo ubicación GPS... por favor espere'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  double? lat;
+                  double? lng;
+                  String ubicacionTexto = "Sin GPS";
+
+                  try {
+                    Position? position = await _determinePosition();
+                    if (position != null) {
+                      lat = position.latitude;
+                      lng = position.longitude;
+                      ubicacionTexto = "$lat, $lng";
+                      debugPrint("✅ GPS Obtenido: $lat, $lng");
+                    }
+                  } catch (e) {
+                    debugPrint("❌ Error obteniendo GPS: $e");
+                  }
+
+                  final incidente = {
+                    "tipo": type,
+                    "descripcion": description,
+                    "ubicacion": ubicacionTexto,
+                    "hora": hour,
+                    "prioridad": severity,
+                    "fotoPath": "",
+                    "lat": lat,
+                    "lng": lng,
+                  };
+
+                  debugPrint("💾 Datos a guardar: $incidente");
+
+                  final id = await LocalDB.saveIncident(incidente);
+                  debugPrint("✅ Guardado con ID $id");
+
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(lat != null
+                          ? 'Incidente guardado con GPS'
+                          : 'Guardado SIN GPS (No se enviará)'),
+                      backgroundColor:
+                      lat != null ? Colors.green : Colors.orange,
                     ),
                   );
 
                   Navigator.pushReplacementNamed(context, '/pending');
                 },
-                child: const Text(
+                child: _isSaving
+                    ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2),
+                )
+                    : const Text(
                   'ENVIAR',
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
           ],
         ),
@@ -204,9 +264,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // ----------------------------------------------------------
-  //  Nombre visible del incidente
-  // ----------------------------------------------------------
   String _labelFor(String t) {
     switch (t) {
       case 'picadura_abeja':
@@ -224,9 +281,6 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  // ----------------------------------------------------------
-  //  Icono según el tipo
-  // ----------------------------------------------------------
   String _imageFor(String t) {
     switch (t) {
       case 'picadura_abeja':
@@ -244,3 +298,4 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 }
+

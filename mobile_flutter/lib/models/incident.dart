@@ -1,1 +1,1 @@
-class Incident { /* TODO */ }
+class Incident {/* TODO */}
